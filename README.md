@@ -1,5 +1,7 @@
 # Clinical Notes Summarization & ICD-10 Coding Assistant (AWS + LLM + React)
 
+https://main.dyeexqtnav08a.amplifyapp.com
+
 This project is an end-to-end **clinical NLP system** built on **AWS** that:
 
 - Ingests **raw clinical notes** (e.g., progress notes, discharge summaries)
