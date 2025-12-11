@@ -1,0 +1,88 @@
+service: clinical-notes-llm-backend
+
+frameworkVersion: "4"
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: us-east-1
+  stage: dev
+  architecture: arm64
+  memorySize: 256
+  timeout: 10
+
+  httpApi:
+    cors:
+      allowedOrigins:
+        - "*"
+      allowedHeaders:
+        - "*"
+      allowedMethods:
+        - GET
+        - POST
+        - OPTIONS
+
+  environment:
+    NOTES_TABLE: clinical-notes-table
+    # Bedrock model for Mistral Mixtral 8x7B Instruct
+    BEDROCK_MODEL_ID: mistral.mixtral-8x7b-instruct-v0:1
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:Scan
+            - dynamodb:UpdateItem
+          Resource:
+            - !GetAtt NotesTable.Arn
+        - Effect: Allow
+          Action:
+            - bedrock:InvokeModel
+          Resource: "*"   # you can restrict this later to specific model ARN
+
+functions:
+  uploadNote:
+    handler: dist/handlers/uploadNote.handler
+    events:
+      - httpApi:
+          path: /notes
+          method: post
+
+  listNotes:
+    handler: dist/handlers/listNotes.handler
+    events:
+      - httpApi:
+          path: /notes
+          method: get
+
+  getNote:
+    handler: dist/handlers/getNote.handler
+    events:
+      - httpApi:
+          path: /notes/{noteId}
+          method: get
+
+package:
+  patterns:
+    - dist/**
+    - node_modules/**
+    - '!src/**'
+    - '!tsconfig.json'
+    - '!package-lock.json'
+
+resources:
+  Resources:
+    NotesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: clinical-notes-table
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: noteId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: noteId
+            KeyType: HASH

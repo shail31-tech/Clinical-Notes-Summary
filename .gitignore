@@ -1,0 +1,85 @@
+###############################################################
+# Node
+###############################################################
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+
+###############################################################
+# Environment files (VERY IMPORTANT)
+###############################################################
+.env
+.env.*
+!.env.example
+
+# Do NOT commit any AWS or HF keys
+backend/.env
+frontend/.env
+
+###############################################################
+# Build artifacts
+###############################################################
+dist/
+build/
+.cache/
+.temp/
+.tmp/
+coverage/
+.vscode-test/
+
+# Backend build output
+backend/.serverless/
+backend/.webpack/
+backend/dist/
+
+# Frontend build output
+frontend/dist/
+frontend/.vite/
+frontend/.cache/
+
+###############################################################
+# TypeScript
+###############################################################
+*.tsbuildinfo
+
+###############################################################
+# Logs
+###############################################################
+logs/
+*.log
+*.log.*
+npm-debug.log*
+lerna-debug.log*
+
+###############################################################
+# OS / Editor system files
+###############################################################
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+.vscode/
+.idea/
+*.iml
+
+###############################################################
+# AWS Related
+###############################################################
+# Serverless Framework
+.serverless/
+
+# SAM build output
+.aws-sam/
+
+# CDK
+cdk.out/
+
+###############################################################
+# Misc
+###############################################################
+*.local
+*.cache
