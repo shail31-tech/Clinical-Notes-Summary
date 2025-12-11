@@ -1,201 +1,175 @@
 # Clinical Notes Summarization & ICD-10 Coding Assistant (AWS + LLM + React)
 
-https://main.dyeexqtnav08a.amplifyapp.com
+Live demo: **https://main.dyeexqtnav08a.amplifyapp.com**
 
 This project is an end-to-end **clinical NLP system** built on **AWS** that:
 
-- Ingests **raw clinical notes** (e.g., progress notes, discharge summaries)
-- Runs a **data engineering pipeline** to clean and lightly de-identify (mask PHI) the text
-- Calls an **LLM (AWS Bedrock)** to:
+- Ingests **raw clinical notes** (e.g., progress notes, ED notes)
+- Stores them in a **serverless data store** (Amazon DynamoDB)
+- Calls an **LLM (Amazon Bedrock – Mixtral 8x7B)** to:
   - Generate a **structured clinical summary**
-  - Suggest **ICD-10 diagnosis codes** with rationales
+  - Suggest **ICD-10 diagnosis codes** with confidence scores
 - Exposes everything through a **React + TypeScript UI** where users can:
   - Upload notes
-  - View structured summaries
+  - View structured summaries (CC, HPI, Assessment, Plan)
   - Review ICD-10 suggestions
-  - Search previously processed notes
+  - Browse previously processed notes
 
-> ⚠️ This project is for **educational / portfolio** purposes and not production-grade for real PHI or HIPAA workloads.
+It’s designed as a realistic **portfolio-grade project** for healthcare data science / ML roles.
 
 ---
 
 ## 1. High-Level Architecture
 
-**User Flow**
+### User Flow (Current Implementation)
 
-1. User logs in via **Cognito/Amplify Auth**.
-2. User uploads or pastes a clinical note through the **React UI**.
-3. Backend stores the raw note in **S3** and metadata in **DynamoDB**.
-4. A **data pipeline** (Glue / Lambda) cleans and masks PHI in the note.
-5. A **Lambda** calls **AWS Bedrock** with the cleaned note:
-   - Returns a structured summary (JSON).
-   - Returns ICD-10 code candidates (code, description, confidence, rationale).
-6. Processed results are saved back to DynamoDB (and/or S3).
-7. The UI shows:
-   - Original (masked) text
-   - Structured summary (HPI, Assessment, Plan, Meds, etc.)
-   - ICD-10 table with confidence scores + rationale.
-8. Optional: Notes and summaries are indexed in **OpenSearch** for search.
+1. User opens the **React + Vite frontend** (hosted on **AWS Amplify**).
+2. User pastes or uploads a clinical note and clicks **Upload**.
+3. The frontend calls a **Serverless backend API** (AWS API Gateway + Lambda).
+4. The backend:
+   - Stores the note in **DynamoDB** (`clinical-notes-table`)
+   - Calls **Amazon Bedrock** (Mixtral 8x7B instruct) with a carefully engineered prompt
+   - Parses the model’s JSON output into:
+     - `chiefComplaint`
+     - `historyOfPresentIllness`
+     - `assessment`
+     - `plan`
+     - `medications[]`
+     - `allergies[]`
+     - `icdCodes[]` (code, description, confidence)
+   - Updates the DynamoDB item with the LLM output and marks status `COMPLETED`
+5. The frontend **Dashboard** lists all notes from DynamoDB and shows their status.
+6. Clicking a note opens the **Note Detail** view with:
+   - Structured summary fields
+   - ICD-10 suggestions in a table
 
-**Core AWS Services**
+### Current Core AWS Services
 
-- **S3** – Raw and cleaned notes
-- **AWS Glue** – Data cleaning & PHI masking jobs (ETL)
-- **AWS Lambda** – API handlers + LLM processing
-- **API Gateway** – HTTPS API for the frontend
-- **AWS Bedrock** – LLM for summarization & ICD-10 coding
-- **DynamoDB** – Metadata + summaries + ICD-10 results
-- **Cognito / Amplify Auth** – Authentication
-- **OpenSearch (optional)** – Full-text and semantic search
+- **AWS Amplify Hosting** – Static hosting + CI/CD for the React app  
+- **Amazon API Gateway (HTTP API)** – Public HTTPS endpoints (`/notes`)  
+- **AWS Lambda** – `uploadNote`, `listNotes`, `getNote` functions (Node.js + TypeScript)  
+- **Amazon DynamoDB** – Serverless NoSQL store for notes + summaries  
+- **Amazon Bedrock** – LLM inference (Mistral Mixtral 8x7B instruct) for summarization + coding  
+
+### Planned / Future Extensions (Nice Talking Points)
+
+These are **not yet implemented** but are natural next steps:
+
+- **S3** for raw note storage and longer-term archival  
+- **PHI redaction / masking** either in-Lambda or via a small ETL job  
+- **AWS Glue** jobs for batch cleaning, analytics, and offline enrichment  
+- **Amazon OpenSearch** for full-text search across historical notes  
+- **Amazon Cognito / Amplify Auth** for user authentication & role-based access  
+
+You can mention these in interviews explicitly as *future roadmap items*.
 
 ---
 
 ## 2. Tech Stack
 
-**Frontend**
+### Frontend
 
-- React + TypeScript
-- Vite (or Create React App)
-- AWS Amplify (hosting + auth integration)
-- Axios / Fetch for API calls
+- **React** + **TypeScript**
+- **Vite** for fast dev and build
+- **Tailwind CSS** for styling
+- **React Router** for navigation
+- Hosted on **AWS Amplify** (GitHub-connected CI/CD)
 
-**Backend**
+### Backend
 
-- Node.js + TypeScript
-- AWS Lambda (API + async processing)
-- API Gateway (REST)
-- AWS Bedrock SDK (for LLM inference)
+- **Node.js** + **TypeScript**
+- **AWS Lambda** handlers:
+  - `uploadNote` – POST `/notes`
+  - `listNotes` – GET `/notes`
+  - `getNote` – GET `/notes/{noteId}`
+- **Serverless Framework** for infrastructure-as-code:
+  - API Gateway routes
+  - Lambda functions
+  - DynamoDB table
+  - Bedrock IAM permissions
 
-**Data Engineering**
+### LLM / NLP
 
-- AWS Glue (PySpark ETL scripts)
-- S3 as data lake
-- Simple PHI masking with regex & transformations
-
-**Infrastructure as Code**
-
-- AWS CDK (TypeScript) or Serverless Framework
-- GitHub Actions for CI (lint, build, basic tests)
+- **Amazon Bedrock**:
+  - Model: `mistral.mixtral-8x7b-instruct-v0:1`
+- Prompt engineering for:
+  - SOAP-like summary (CC, HPI, Assessment, Plan)
+  - Medication & allergy extraction
+  - ICD-10 code inference with confidence scores
+- Robust JSON parsing with **fallback** logic if the model output is malformed
 
 ---
 
-## 3. Repository Structure
+## 3. Features
+
+- **Clinical note upload** via web UI
+- **Serverless ingestion pipeline** to DynamoDB
+- **Automatic summarization** into structured fields:
+  - Chief complaint
+  - History of present illness
+  - Assessment
+  - Plan
+- **ICD-10 code suggestions**:
+  - Code, description, confidence
+- **Status tracking**: `PENDING` → `COMPLETED`
+- **Dashboard** of historical notes
+- **Note detail view** with full structured summary
+
+---
+
+## 4. Repository Structure (Actual Project)
 
 ```text
-clinical-notes-llm-assistant/
+Clinical-Notes-Summary/
 ├─ README.md
-├─ LICENSE
 ├─ .gitignore
-├─ .env.example
-├─ package.json                # Root-level scripts (lint, format, etc.)
-├─ tsconfig.base.json
-├─ docs/
-│  ├─ architecture-overview.md
-│  ├─ api-design.md
-│  ├─ data-pipeline-design.md
-│  ├─ llm-prompt-design.md
-│  ├─ ui-ux-wireframes.md
-│  └─ demo-script.md
 │
-├─ infra/                      # IaC – AWS CDK or Serverless
-│  ├─ cdk.json
+├─ backend/                    # Lambda + Serverless backend
 │  ├─ package.json
+│  ├─ package-lock.json
 │  ├─ tsconfig.json
-│  ├─ bin/
-│  │  └─ clinical-notes-llm-assistant.ts
-│  └─ lib/
-│     ├─ networking-stack.ts
-│     ├─ storage-stack.ts        # S3, DynamoDB, OpenSearch, KMS
-│     ├─ auth-stack.ts           # Cognito user pool / identity pool
-│     ├─ api-stack.ts            # API Gateway + Lambdas
-│     ├─ bedrock-stack.ts        # Bedrock permissions/config
-│     └─ glue-stack.ts           # Glue jobs, crawlers, IAM roles
-│
-├─ frontend/                   # React + TypeScript UI
-│  ├─ package.json
-│  ├─ tsconfig.json
-│  ├─ vite.config.ts
-│  ├─ public/
+│  ├─ serverless.yml           # API GW + Lambdas + DynamoDB + IAM
 │  └─ src/
-│     ├─ main.tsx
-│     ├─ App.tsx
-│     ├─ api/
-│     │  ├─ client.ts           # Axios/fetch wrapper
-│     │  ├─ notes.ts            # uploadNote, getNote, listNotes, searchNotes
-│     │  └─ auth.ts
-│     ├─ components/
-│     │  ├─ layout/
-│     │  │  ├─ Navbar.tsx
-│     │  │  └─ Sidebar.tsx
-│     │  ├─ upload/
-│     │  │  └─ NoteUploadForm.tsx
-│     │  ├─ notes/
-│     │  │  ├─ NoteSummaryCard.tsx
-│     │  │  └─ CodeSuggestionTable.tsx
-│     │  └─ search/
-│     │     └─ NoteSearchBar.tsx
-│     ├─ pages/
-│     │  ├─ DashboardPage.tsx
-│     │  ├─ NoteDetailPage.tsx
-│     │  └─ SettingsPage.tsx
-│     ├─ hooks/
-│     │  └─ useNotes.ts
-│     ├─ context/
-│     │  └─ AuthContext.tsx
-│     ├─ styles/
-│     │  └─ global.css
-│     └─ types/
-│        └─ index.ts            # Note, Summary, ICDCode, User types
+│     ├─ common/
+│     │  ├─ dynamoStore.ts     # DynamoDB CRUD helpers
+│     │  ├─ llm.ts             # Bedrock Mixtral 8x7B integration
+│     │  ├─ logger.ts          # Simple logging helper
+│     │  └─ response.ts        # API Gateway response helpers
+│     ├─ handlers/
+│     │  ├─ uploadNote.ts      # POST /notes
+│     │  ├─ listNotes.ts       # GET /notes
+│     │  └─ getNote.ts         # GET /notes/{noteId}
+│     └─ models/
+│        └─ note.ts            # Note / summary TypeScript types
 │
-├─ backend/                    # Lambdas + backend logic
-│  ├─ package.json
-│  ├─ tsconfig.json
-│  ├─ src/
-│  │  ├─ common/
-│  │  │  ├─ logger.ts
-│  │  │  ├─ response.ts         # API Gateway response helpers
-│  │  │  ├─ validation.ts       # zod / yup schemas
-│  │  │  └─ bedrock-client.ts   # Bedrock call wrapper
-│  │  ├─ models/
-│  │  │  ├─ note.ts             # Dynamo/S3 utilities
-│  │  │  └─ icd-code.ts
-│  │  ├─ handlers/
-│  │  │  ├─ uploadNote.ts       # POST /notes
-│  │  │  ├─ getNote.ts          # GET /notes/{id}
-│  │  │  ├─ listNotes.ts        # GET /notes
-│  │  │  ├─ searchNotes.ts      # GET /notes/search
-│  │  │  ├─ processNoteLLM.ts   # async LLM processing (SQS/EventBridge)
-│  │  │  └─ healthCheck.ts
-│  │  └─ prompts/
-│  │     ├─ summarize-note.prompt.txt
-│  │     └─ icd10-coding.prompt.txt
-│  └─ serverless.yml            # Optional, if using Serverless instead of CDK
-│
-├─ data-pipeline/              # Glue / ETL
-│  ├─ glue-scripts/
-│  │  ├─ clean_and_mask_notes.py
-│  │  ├─ generate_embeddings.py   # optional, for search
-│  │  └─ schema_inference.py
-│  ├─ jobs/
-│  │  ├─ glue-job-clean-notes.md
-│  │  └─ glue-job-embeddings.md
-│  ├─ sample-data/
-│  │  ├─ raw_notes/
-│  │  │  └─ sample_note_01.json
-│  │  └─ cleaned_notes/
-│  │     └─ sample_note_01_cleaned.json
-│  └─ notebooks/
-│     ├─ exploration-notes.ipynb
-│     └─ icd-code-analysis.ipynb
-│
-├─ scripts/                    # Local helper scripts
-│  ├─ deploy-all.sh
-│  ├─ deploy-frontend.sh
-│  ├─ deploy-infra.sh
-│  └─ seed-sample-data.ts
-│
-└─ .github/
-   └─ workflows/
-      ├─ ci-frontend.yml
-      ├─ ci-backend.yml
-      └─ ci-infra.yml
+└─ frontend/                   # React + Vite + Tailwind frontend
+   ├─ package.json
+   ├─ package-lock.json
+   ├─ tsconfig.json
+   ├─ tsconfig.app.json
+   ├─ tsconfig.node.json
+   ├─ vite.config.ts
+   ├─ postcss.config.js
+   ├─ tailwind.config.js
+   ├─ index.html
+   └─ src/
+      ├─ main.tsx              # App entry point
+      ├─ App.tsx               # Routes + layout shell
+      ├─ index.css             # Tailwind entry
+      ├─ App.css
+      ├─ api/
+      │  └─ notes.ts           # listNotes, getNote, uploadNote -> API Gateway
+      ├─ components/
+      │  ├─ layout/
+      │  │  └─ Navbar.tsx
+      │  ├─ notes/
+      │  │  ├─ NoteSummaryCard.tsx
+      │  │  └─ CodeSuggestionTable.tsx
+      │  └─ upload/
+      │     └─ NoteUploadForm.tsx
+      ├─ pages/
+      │  ├─ DashboardPage.tsx
+      │  ├─ NoteDetailPage.tsx
+      │  └─ UploadPage.tsx
+      └─ types/
+         └─ index.ts           # NoteSummary, ICDCode types
